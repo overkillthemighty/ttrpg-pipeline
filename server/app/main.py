@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import api, db, recordings, security, web
+from .updates import tracker
 from .config import settings
 from .worker import worker
 
@@ -31,7 +32,9 @@ async def lifespan(app: FastAPI):
     if n:
         log.info("Released %d browser recording(s) that were being finished when the server stopped", n)
     worker.start()
+    tracker.start()
     yield
+    tracker.stop()
     worker.stop()
 
 

@@ -29,6 +29,7 @@ from . import client, db, jobs, recordings
 from .config import settings
 from . import security
 from .security import Principal, api_principal, human_only
+from .updates import tracker
 from .worker import worker
 
 router = APIRouter(prefix="/api/v1")
@@ -74,7 +75,7 @@ class SyncBody(BaseModel):
 
 @router.get("/health")
 def health() -> dict:
-    return {"ok": True, "running": worker.current, "client_version": client.version()}
+    return {"ok": True, "running": worker.current, "client_version": client.version(), "version": tracker.status.short}
 
 
 @router.get("/health/idle")
@@ -82,6 +83,14 @@ def health_idle(response: Response) -> dict:
     """For deploy scripts: 200 when an update can restart the server without interrupting anything,
     503 while a job runs or waits in the queue, a laptop upload is in progress, or a browser
     recording is still sending audio. Wait for 200, then redeploy."""
+    reasons = busy_reasons()
+    if reasons:
+        response.status_code = 503
+    return {"idle": not reasons, "reasons": reasons}
+
+
+def busy_reasons() -> list[str]:
+    """Why an update can't restart the server right now (empty = idle)."""
     reasons = []
     if worker.current:
         reasons.append("a job is running")
@@ -96,9 +105,7 @@ def health_idle(response: Response) -> dict:
     rec = len(recordings.active())
     if rec:
         reasons.append(f"{rec} browser recording(s) in progress")
-    if reasons:
-        response.status_code = 503
-    return {"idle": not reasons, "reasons": reasons}
+    return reasons
 
 
 @router.get("/whoami")

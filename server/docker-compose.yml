@@ -12,6 +12,9 @@ services:
     env_file: .env
     volumes:
       - ./data:/data
+      # Read-only, so the server knows which commit it runs (footer, update check for admins).
+      # If you copied only the server/ folder there is no ../.git: remove this line or set APP_VERSION.
+      - ../.git:/srv/repo.git:ro
     ports:
       # Host port comes from HOST_PORT in .env (default 8054). Point NPM at http://<docker-host>:8054
       - "${HOST_PORT:-8054}:8000"

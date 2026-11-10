@@ -36,12 +36,33 @@
 </header>
 <main>
 {% if flash %}<div class="flash {{ flash.kind }}">{{ flash.msg }}</div>{% endif %}
+{% if user and user.is_admin and update.needs_attention %}
+<div class="flash {{ 'warn' if update.state == 'behind' else '' }} update-banner">
+  {% if update.state == 'pending' %}
+  <strong>An update is on its way.</strong> {{ update.commits|length }} newer change(s) were pushed to GitHub, the latest at {{ update.pushed_at|dt }}. They deploy automatically once the tests pass and the server is idle (no job running, queued or uploading, and no browser recording in progress).
+  {% else %}
+  <strong>This server is out of date.</strong> It runs <span class="mono">{{ update.short }}</span>, but {{ update.commits|length }} newer change(s) have been on GitHub since {{ update.waiting_since|dt }}. The server is idle, so the deploy should have run by now. It probably failed{% if repo_url %}: check the <a href="{{ repo_url }}/actions" target="_blank" rel="noopener">Deploy workflow</a>{% endif %}.
+  {% endif %}
+  {% if update.detail %}<div class="small muted">{{ update.detail }}</div>{% endif %}
+  <details><summary>What's new</summary>
+    <ul class="plain small">{% for c in update.commits[:15] %}<li><a class="mono" href="{{ c.url }}" target="_blank" rel="noopener">{{ c.short }}</a> {{ c.title }}</li>{% endfor %}
+    {% if update.commits|length > 15 %}<li class="muted">and {{ update.commits|length - 15 }} more</li>{% endif %}</ul>
+  </details>
+</div>
+{% endif %}
 {% block content %}{% endblock %}
 </main>
-{% if repo_url %}<footer class="site-footer small muted">
-  <a href="{{ repo_url }}/commits/main" target="_blank" rel="noopener">Changelog</a> ·
-  <a href="{{ repo_url }}" target="_blank" rel="noopener">Source on GitHub</a>
-</footer>{% endif %}
+<footer class="site-footer small muted">
+  {% if repo_url and update.commit %}Version <a class="mono" href="{{ repo_url }}/commit/{{ update.commit }}" target="_blank" rel="noopener">{{ update.short }}</a>{% else %}Version <span class="mono">{{ update.short }}</span>{% endif %}
+  {% if repo_url %} · <a href="{{ repo_url }}/commits/main" target="_blank" rel="noopener">Changelog</a> ·
+  <a href="{{ repo_url }}" target="_blank" rel="noopener">Source on GitHub</a>{% endif %}
+  {% if user and user.is_admin %}
+  <div>
+    {% if update.state == 'current' %}Up to date{% elif update.state == 'error' %}<span class="danger">{{ update.detail }}</span>{% elif update.state in ('disabled', 'unknown') %}{{ update.detail or 'Not checked yet' }}{% elif update.state == 'behind' %}<span class="warn-text">Update not deployed</span>{% else %}Update on its way{% endif %}{% if update.checked_at %}, checked {{ update.checked_at|dt }}{% endif %}
+    {% if update.state not in ('disabled', 'unknown') %}<form method="post" action="/settings/update-check" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="next" value="{{ request.url.path }}"><button class="link small">Check now</button></form>{% endif %}
+  </div>
+  {% endif %}
+</footer>
 <script src="{{ asset('app.js') }}"></script>
 {% block scripts %}{% endblock %}
 </body>

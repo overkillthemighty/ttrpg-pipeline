@@ -125,3 +125,5 @@ input.bad { border-color: var(--err); }
 .table-wrap th[scope], .table-wrap tbody th { white-space: nowrap; }
 .statuses td:first-child { width: 1%; white-space: nowrap; }
 .welcome h2 { margin: 0; }
+.update-banner details { margin-top: 4px; } .update-banner ul.plain li { padding: 1px 0; }
+.site-footer form.inline button.link { margin-left: 4px; text-decoration: underline; }

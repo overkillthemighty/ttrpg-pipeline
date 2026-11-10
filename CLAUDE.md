@@ -10,7 +10,8 @@ Docker server, labels each line with the speaker, and publishes the results to N
   - `app/main.py` startup/shutdown, `web.py` pages, `api.py` REST API (`/api/v1/...`), `security.py` users,
     API keys, permissions, CSRF, `db.py` schema + migrations (ALTER TABLE in `init()`), `jobs.py` job model,
     `worker.py` runs one job at a time in a child process, `recordings.py` browser recordings (chunk upload,
-    assembly, clap alignment), `manage.py` CLI (reset-password, list-users)
+    assembly, clap alignment), `manage.py` CLI (reset-password, list-users),
+    `updates.py` update tracker (running commit from the `../.git` mount vs GitHub; admin banner, footer version)
   - `app/pipeline/` `runner.py` stages: validate, sync, preprocess, mix, transcribe (WhisperX CLI), assign
     (lav bleed matrix) or `single.py` (room mic, optional diarization), encode `lav_mix.flac`, publish (WebDAV)
   - `app/static/` `app.js` (dashboard), `record.js` (browser recorder, IndexedDB), `app.css`, `mic-test.html`

@@ -65,3 +65,61 @@ def test_guide_is_public():
     with TestClient(app) as anon:
         r = anon.get("/guide", follow_redirects=False)
         assert r.status_code == 200 and "Three ways to get audio in" in r.text
+
+
+def test_reads_commit_from_git_dir(tmp_path):
+    from app.updates import read_commit
+    sha = "a" * 40
+    (tmp_path / "HEAD").write_text("ref: refs/heads/main\n")
+    (tmp_path / "packed-refs").write_text(f"# pack-refs\n{sha} refs/heads/main\n")
+    assert read_commit(tmp_path) == sha
+    (tmp_path / "refs" / "heads").mkdir(parents=True)
+    (tmp_path / "refs" / "heads" / "main").write_text("b" * 40 + "\n")
+    assert read_commit(tmp_path) == "b" * 40
+    assert read_commit(tmp_path / "missing") == ""
+
+
+def _commit(sha: str, msg: str, date: str = "2020-01-01T00:00:00Z") -> dict:
+    return {"sha": sha * 40, "html_url": "u", "commit": {"message": msg, "committer": {"date": date}}}
+
+
+def test_update_status_ignores_docs_only_changes():
+    from app.updates import Status, apply_compare
+    st = Status(commit="0" * 40)
+    apply_compare(st, {"status": "ahead", "commits": [_commit("1", "Docs")], "files": [{"filename": "README.md"}]})
+    assert st.state == "current"
+    st = Status(commit="0" * 40)
+    apply_compare(st, {"status": "identical", "commits": [], "files": []})
+    assert st.state == "current"
+
+
+def test_update_status_flags_code_changes():
+    import time
+    from datetime import datetime, timezone
+    from app.updates import Status, apply_compare
+    st = Status(commit="0" * 40)
+    apply_compare(st, {"status": "ahead", "files": [{"filename": "server/app/web.py"}, {"filename": "README.md"}],
+                       "commits": [_commit("1", "Old fix\n\nbody"), _commit("2", "New page")]})
+    assert st.state == "behind" and [c["title"] for c in st.commits] == ["New page", "Old fix"]
+    assert st.latest == "2" * 40
+    just_now = datetime.fromtimestamp(time.time() - 60, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    st = Status(commit="0" * 40)
+    apply_compare(st, {"status": "ahead", "files": [{"filename": "server/client/record.ps1"}],
+                       "commits": [_commit("3", "Recorder", just_now)]})
+    assert st.state == "pending"
+    st = Status(commit="0" * 40)   # an old push isn't "out of date" while a session keeps the server busy
+    apply_compare(st, {"status": "ahead", "files": [{"filename": "server/app/jobs.py"}],
+                       "commits": [_commit("4", "Fix")]}, ["a job is running"])
+    assert st.state == "pending" and "a job is running" in st.detail
+
+
+def test_update_check_is_admin_only(admin):
+    c, csrf = admin
+    r = c.post("/settings/update-check", data={"csrf": csrf, "next": "/"}, follow_redirects=False)
+    assert r.status_code == 303
+    assert "Version" in c.get("/").text
+    with TestClient(app) as g:
+        login(g, "guest", "guest-password-1")
+        tok = re.search(r'name="csrf-token" content="([^"]+)"', g.get("/").text).group(1)
+        r = g.post("/settings/update-check", data={"csrf": tok}, follow_redirects=False)
+        assert r.status_code in (303, 403)

@@ -12,6 +12,7 @@ from fastapi.templating import Jinja2Templates
 
 from . import client, db, jobs, security
 from .config import settings
+from .updates import tracker
 from .worker import worker
 
 log = logging.getLogger("ttrpg.web")
@@ -82,7 +83,7 @@ def _admin(request: Request) -> dict:
 def render(request: Request, name: str, user: dict | None, **ctx) -> HTMLResponse:
     ctx.update(user=user, csrf=security.csrf_token(request), oidc_enabled=settings.oidc_enabled,
                oidc_label=settings.oidc_button_label, nextcloud_enabled=settings.nextcloud_enabled,
-               repo_url=settings.repo_url,
+               repo_url=settings.repo_url, update=tracker.status,
                flash=request.session.pop("flash", None))
     return templates.TemplateResponse(request, name, ctx)
 
@@ -435,6 +436,20 @@ def account_password(request: Request, current: str = Form(""), new: str = Form(
 
 _STATIC = Path(__file__).parent / "static"
 _ICON_CACHE = {"Cache-Control": "public, max-age=604800"}
+
+
+@router.post("/settings/update-check")
+def update_check(request: Request, csrf: str = Form(""), next: str = Form("/")):
+    _admin(request)
+    security.check_csrf(request, csrf)
+    st = tracker.check()
+    if st.state == "error":
+        flash(request, st.detail, "err")
+    elif st.needs_attention:
+        flash(request, f"{len(st.commits)} newer change(s) on GitHub are not deployed yet.", "warn")
+    else:
+        flash(request, f"Up to date (running {st.short}).")
+    return back(_safe_next(next))
 
 
 @router.get("/favicon.ico")

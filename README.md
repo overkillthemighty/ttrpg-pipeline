@@ -170,6 +170,15 @@ The dashboard's **Record** page records straight from the browser: the lav recei
 - `tools\mic-test.html` (run `tools\Serve-MicTest.ps1`) checks that a browser gets both channels of each receiver.
 - **Channels merged?** If each receiver's left and right meters move together, something in the browser is intercepting the microphone, usually an extension (a voice changer such as Clownfish, a noise canceller, a meeting recorder). The Record page shows a red warning when it detects this. Remove the extension or block its site access for this site, then reload.
 
+### Update check
+
+Admins see a banner when the code on GitHub is newer than what the server runs. The page footer shows the running version for everyone.
+
+- **How it knows its version:** `docker-compose.yml` mounts the repo's `.git` read-only, and the server reads the checked-out commit when it starts. If you copied only the `server/` folder, remove that line (or set `APP_VERSION` to the full commit hash) and the check stays off.
+- **What counts:** only commits that change what goes into the server (`server/app`, `server/client`, Dockerfile, requirements, compose files). A README-only push isn't "out of date".
+- **On its way vs out of date:** a push less than 30 minutes old, or one waiting while a job, upload or browser recording keeps the server busy, shows as *on its way*. If newer code has waited longer than that while the server is idle, the deploy most likely failed. The banner is then yellow and links to the Deploy workflow on GitHub, and with `NEXTCLOUD_NOTIFY_ENABLED` you get one Nextcloud notification per new commit.
+- It asks GitHub every hour (`UPDATE_CHECK_HOURS`); **Check now** in the footer asks straight away. `UPDATE_CHECK=false` turns it off.
+
 ### Forgot your password?
 
 There's no reset link (the server doesn't send email). On the Docker host, in the server folder:
