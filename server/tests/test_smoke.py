@@ -24,7 +24,7 @@ def admin():
 
 def test_pages_render(admin):
     c, _ = admin
-    for path in ("/", "/upload", "/record", "/client", "/settings/keys", "/settings/users", "/account"):
+    for path in ("/", "/guide", "/upload", "/record", "/client", "/settings/keys", "/settings/users", "/account"):
         assert c.get(path).status_code == 200, path
 
 
@@ -59,3 +59,9 @@ def test_cannot_remove_own_admin(admin):
                follow_redirects=True)
     assert "remove your own admin" in r.text
     assert security.get_user_by_name("admin")["is_admin"]
+
+
+def test_guide_is_public():
+    with TestClient(app) as anon:
+        r = anon.get("/guide", follow_redirects=False)
+        assert r.status_code == 200 and "Three ways to get audio in" in r.text

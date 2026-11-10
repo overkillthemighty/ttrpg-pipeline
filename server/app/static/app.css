@@ -115,3 +115,13 @@ input.bad { border-color: var(--err); }
 .top-right { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
 .site-footer { max-width: 1100px; margin: -40px auto 0; padding: 0 16px 32px; text-align: center; }
 .site-footer a { color: var(--muted); } .site-footer a:hover { color: var(--text); }
+.guide { max-width: 860px; margin: 0 auto; }
+.guide .lead { font-size: 1.08rem; }
+.guide h3 { font-size: 1rem; margin: 18px 0 6px; }
+.guide section { scroll-margin-top: 16px; }
+.guide li { margin: 3px 0; }
+.toc ol { margin: 6px 0 0; padding-left: 22px; columns: 2 220px; }
+.table-wrap { overflow-x: auto; margin-bottom: 8px; }
+.table-wrap th[scope], .table-wrap tbody th { white-space: nowrap; }
+.statuses td:first-child { width: 1%; white-space: nowrap; }
+.welcome h2 { margin: 0; }

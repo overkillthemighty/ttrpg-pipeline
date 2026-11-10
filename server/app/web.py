@@ -234,6 +234,13 @@ def index(request: Request):
                   running=worker.current)
 
 
+@router.get("/guide", response_class=HTMLResponse)
+def guide_page(request: Request):
+    # Public on purpose: someone who has just been sent the link can read what this is before signing in.
+    return render(request, "guide.html", security.session_user(request),
+                  diarize_available=bool(settings.hf_token))
+
+
 @router.get("/jobs/{job_id}", response_class=HTMLResponse)
 def job_page(request: Request, job_id: str):
     user = _user(request)

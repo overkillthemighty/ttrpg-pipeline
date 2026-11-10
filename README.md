@@ -16,6 +16,7 @@
 **Laptop:** records and syncs, then uploads about 170 MB of FLAC per hour (was about 445 MB of WAV). Every source file stays on the laptop, so any session can be submitted again.
 
 - **Server:** does all the heavy lifting. After a successful job it keeps only `lav_mix.flac` and `transcript_lav_assigned.{csv,md,json}`. A failed job keeps everything so it can be retried.
+- **New users:** send them to the dashboard's **Guide** page (`/guide`). It explains in plain terms what the site does, the three ways to get audio in (browser Record page, laptop scripts, Upload), what the job statuses mean and what comes back. It can be read without signing in, and first-time visitors see a link to it on the Jobs page.
 - **Results:** go to Nextcloud under `Documents/Riftward/<session date>/`. The `.md` is also copied to `Riftward/Claude/Session Logs/<session date>_transcript_lav_assigned.md`. Folders are named by the **recording** date, not the processing date.
 
 ---

@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}Guide{% endblock %}
+{% block content %}
+<div class="guide">
+<h1>Welcome</h1>
+<p class="lead">This site turns a recording of a tabletop game session into a written transcript that says <strong>who said what</strong>. You give it audio; it gives back a transcript and one cleaned-up recording of the session.</p>
+{% if not user %}<p><a class="button primary" href="/login">Sign in</a> <span class="small muted">You need an account to record or upload. Ask whoever runs this server.</span></p>{% endif %}
+
+<nav class="toc card">
+  <strong>On this page</strong>
+  <ol>
+    <li><a href="#what">What it does</a></li>
+    <li><a href="#mics">Two ways to mic the table</a></li>
+    <li><a href="#ways">Three ways to get audio in</a></li>
+    <li><a href="#after">After you submit</a></li>
+    <li><a href="#results">What you get back</a></li>
+    <li><a href="#tips">Tips and common problems</a></li>
+  </ol>
+</nav>
+
+<section class="card" id="what">
+  <h2>1. What it does</h2>
+  <ol class="flow">
+    <li><strong>Audio in.</strong> Ideally one microphone per person (clip-on lav mics), or a single mic in the middle of the table.</li>
+    <li><strong>Line up.</strong> Separate mics start recording at slightly different moments. Everyone claps once at the start; the server finds that clap on every track and lines them up.</li>
+    <li><strong>Clean up and mix.</strong> The tracks are levelled and mixed into one recording of the whole session.</li>
+    <li><strong>Transcribe.</strong> Speech recognition (Whisper) writes down every word with a timestamp.</li>
+    <li><strong>Who said it.</strong> For each word, the server checks which mic heard it loudest (allowing for each voice bleeding into the other mics) and labels the line with that player's name.</li>
+    <li><strong>Deliver.</strong> The transcript and mix are saved on the job page{% if nextcloud_enabled %} and, if your account publishes to Nextcloud, copied to the campaign folder{% endif %}.</li>
+  </ol>
+  <p class="small muted">Everything heavy runs on the server. Your computer only records and uploads. A session takes anywhere from a few minutes to about as long as the session itself, depending on the server's hardware.</p>
+</section>
+
+<section class="card" id="mics">
+  <h2>2. Two ways to mic the table</h2>
+  <div class="grid2">
+    <div>
+      <h3>Lav mics (recommended)</h3>
+      <p>Each player and the DM wears a clip-on mic. Wireless lav receivers are usually stereo, so one receiver carries two people (left and right channel).</p>
+      <ul>
+        <li>Lines are labelled with real player names.</li>
+        <li>Most accurate. Lines get a single speaker about 90% of the time; when two people talk at once you'll see <code>A+B</code>.</li>
+        <li><strong>Needs a clap</strong> at the start of each recording so the tracks can be lined up.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Room mic only (best effort)</h3>
+      <p>One microphone records the whole table. Use it when the lavs aren't available.</p>
+      <ul>
+        <li>No clap needed.</li>
+        <li>No player names. Without speaker guessing you get timestamped lines with no speaker.</li>
+        <li>{% if diarize_available %}With <em>Guess speakers</em> on, lines are labelled <em>Speaker 1, Speaker 2, ...</em> These are guesses: they can split or merge people, and they aren't matched to players.{% else %}Speaker guessing isn't set up on this server, so lines have no speaker.{% endif %}</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="card" id="ways">
+  <h2>3. Three ways to get audio in</h2>
+  <div class="table-wrap">
+  <table class="compact">
+    <thead><tr><th></th><th>Record in the browser</th><th>Laptop scripts</th><th>Upload files</th></tr></thead>
+    <tbody>
+      <tr><th>Best for</th><td>Recording live without installing anything</td><td>The regular game-night laptop</td><td>Audio you already recorded some other way</td></tr>
+      <tr><th>Needs</th><td>Chrome or Edge, the mics plugged into this computer</td><td>Windows, PowerShell, <code>ffmpeg.exe</code></td><td>One audio file per player, or one room recording</td></tr>
+      <tr><th>If something crashes</th><td>Reopen the page and resume. Audio is saved every 5 s</td><td>Most robust: recording carries on even if the window closes</td><td>Uploads resume where they stopped</td></tr>
+      <tr><th>Where</th><td><a href="/record">Record</a></td><td><a href="/client">Laptop scripts</a></td><td><a href="/upload">Upload</a></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>A. Record in the browser</h3>
+  <ol>
+    <li>Open <a href="/record">Record</a> in Chrome or Edge, using the site's <strong>https://</strong> address (browsers only allow microphones on secure pages).</li>
+    <li>Close Teams, Discord or anything else that might be holding the receivers.</li>
+    <li>Click <strong>Allow microphones</strong>, then choose <em>Lav receivers</em> or <em>Room mic only</em>.</li>
+    <li>For lavs, pick each receiver and type a <strong>player name</strong> for each channel (no spaces). Watch the level meters move as each person talks. Tick <em>not used</em> for an empty channel.</li>
+    <li>Click <strong>Start recording</strong>, then have everyone <strong>clap once, loudly</strong>.</li>
+    <li><strong>Keep the tab open</strong> for the whole session. Audio uploads in the background as you go.</li>
+    <li>Click <strong>Stop</strong> at the end. The server builds the tracks and opens the new job.</li>
+  </ol>
+
+  <h3>B. Laptop scripts (Windows)</h3>
+  <ol>
+    <li>On <a href="/client">Laptop scripts</a>, click <strong>Download with a new API key</strong>. The zip contains the scripts and a <code>config.json</code> already pointed at this server.</li>
+    <li>Right-click the zip, <strong>Properties</strong>, tick <strong>Unblock</strong>, then extract it next to <code>ffmpeg.exe</code> and <code>ffprobe.exe</code>.</li>
+    <li>Set <code>playerCount</code> in <code>config.json</code> (players plus the DM).</li>
+    <li>Run <code>.\record.ps1</code> in PowerShell. Choose devices the first time, check levels, then <strong>clap once</strong>.</li>
+    <li>Press <strong>Q</strong> to stop, then <strong>Y</strong> to sync and upload. It shows progress until the transcript is ready; closing the window doesn't stop the server job.</li>
+  </ol>
+  <p class="small muted">Room mic only: <code>.\record.ps1 -Single</code>. The full list of options is in the project README.</p>
+
+  <h3>C. Upload files</h3>
+  <ol>
+    <li>Open <a href="/upload">Upload</a> and choose what kind of audio you have:
+      <ul>
+        <li><strong>Raw player recordings:</strong> one file per player, straight off the recorder. The server finds the clap and lines them up.</li>
+        <li><strong>Already synced:</strong> the <code>synced_*.flac</code> files the laptop scripts produce.</li>
+        <li><strong>Room mic only:</strong> a single recording of the whole table.</li>
+      </ul>
+    </li>
+    <li>Check the <strong>Speaker label</strong> next to each file (it defaults to Player1, Player2, ...). That label is the name shown in the transcript. Don't include a room mic in a lav upload.</li>
+    <li>Set the session date (results are filed by the date you <em>played</em>, not the upload date) and submit.</li>
+  </ol>
+  <p class="small muted">No clap on your raw files? Set <strong>Clap</strong> to ignore it and the tracks are used as recorded, or type the clap times yourself if you can find them in an audio editor.</p>
+</section>
+
+<section class="card" id="after">
+  <h2>4. After you submit</h2>
+  <p>Every recording or upload becomes a <strong>job</strong> on the <a href="/">Jobs</a> page. The server works on one job at a time, so yours may wait in line.</p>
+  <table class="compact statuses">
+    <tbody>
+      <tr><td><span class="badge uploading">uploading</span></td><td>Audio is still arriving.</td></tr>
+      <tr><td><span class="badge queued">queued</span></td><td>Waiting for another job to finish.</td></tr>
+      <tr><td><span class="badge running">running</span></td><td>Being lined up, transcribed and labelled. The bar shows the current step.</td></tr>
+      <tr><td><span class="badge review">review</span></td><td>The claps didn't line up and you asked to be consulted. Open the job and choose how to sync it.</td></tr>
+      <tr><td><span class="badge done">done</span></td><td>Finished. Results are on the job page.</td></tr>
+      <tr><td><span class="badge failed">failed</span></td><td>Something went wrong. The job page shows the error; <strong>Retry</strong> picks up from the last finished step.</td></tr>
+      <tr><td><span class="badge cancelled">cancelled</span></td><td>Stopped by someone. It can be retried.</td></tr>
+    </tbody>
+  </table>
+  <p class="small muted">You can close the browser or laptop while a job runs. Everyone can see the queue, but only you (and people allowed to see all outputs) can open your transcript.</p>
+</section>
+
+<section class="card" id="results">
+  <h2>5. What you get back</h2>
+  <ul>
+    <li><code>transcript_lav_assigned.md</code>: the readable transcript, one line per utterance with time and speaker.</li>
+    <li><code>transcript_lav_assigned.csv</code>: the same, for a spreadsheet.</li>
+    <li><code>transcript_lav_assigned.json</code>: the same with word-level detail, for other tools.</li>
+    <li><code>lav_mix.flac</code>: one mixed recording of the whole session (the room recording, for room-mic sessions).</li>
+  </ul>
+  <p>Download them from the job page.{% if nextcloud_enabled %} If your account is set to <em>publish to Nextcloud</em>, they are also placed in the campaign's Nextcloud folder, named by session date.{% endif %} The server keeps only these four files after a successful job; the original recordings stay on the computer that made them.</p>
+</section>
+
+<section class="card" id="tips">
+  <h2>6. Tips and common problems</h2>
+  <ul>
+    <li><strong>Clap once, loudly, right after starting.</strong> Clap again whenever a recording restarts (the page or script beeps and tells you).</li>
+    <li><strong>Check the meters before you start.</strong> Each person should move only their own meter. If both channels of a receiver always move together, a browser extension (voice changer, noise canceller, meeting recorder) is intercepting the mic. Turn it off for this site and reload.</li>
+    <li><strong>A receiver dropped out?</strong> Recording restarts automatically as a new part once it's back. Clap again. The gap becomes silence and everyone stays in sync.</li>
+    <li><strong>Browser or laptop closed mid-session?</strong> Nothing recorded so far is lost. Reopen Record (or run <code>record.ps1</code> again) and choose to resume or finish.</li>
+    <li><strong>Transcript labels look wrong?</strong> Usually a mic was swapped between players or a name was typed on the wrong channel. Check the job's log, which lists which device and channel each name came from.</li>
+    <li><strong>Forgot your password?</strong> There's no reset email. Ask the server admin to reset it.</li>
+  </ul>
+</section>
+</div>
+{% endblock %}

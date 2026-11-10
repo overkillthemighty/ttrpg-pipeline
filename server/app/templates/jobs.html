@@ -5,6 +5,14 @@
   <h1>Jobs</h1>
   <a class="button primary" href="/upload">Upload a session</a>
 </div>
+<section class="card highlight welcome" id="welcome" hidden>
+  <div class="row-between">
+    <h2>New here?</h2>
+    <button type="button" class="link small" id="welcome-close">Don't show again</button>
+  </div>
+  <p>This site turns a recording of your game into a transcript that says who said what. You can record right here in the browser, upload audio files you already have, or use the recorder scripts on a Windows laptop.</p>
+  <a class="button primary" href="/guide">Read the guide</a>
+</section>
 {% if not nextcloud_enabled %}<div class="flash warn">Nextcloud isn't configured, so results stay on this server only (download them from each job).</div>{% endif %}
 <div class="card flush">
 <table class="jobs">
@@ -25,4 +33,16 @@
 </table>
 </div>
 {% endblock %}
-{% block scripts %}<script>TTRPG.pollJobList();</script>{% endblock %}
+{% block scripts %}<script>
+TTRPG.pollJobList();
+(function () {
+  var box = document.getElementById("welcome");
+  var seen = false;
+  try { seen = localStorage.getItem("welcome-dismissed") === "1"; } catch (e) {}
+  if (!seen) box.hidden = false;
+  document.getElementById("welcome-close").addEventListener("click", function () {
+    box.hidden = true;
+    try { localStorage.setItem("welcome-dismissed", "1"); } catch (e) {}
+  });
+})();
+</script>{% endblock %}
