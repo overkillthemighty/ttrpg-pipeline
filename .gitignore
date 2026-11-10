@@ -1,0 +1,31 @@
+# Secrets and server state (live only on the Docker host)
+server/.env
+server/data/
+.env
+
+# Laptop config (holds an API key) and per-machine state
+config.json
+last_devices.json
+client_version.txt
+
+# Recordings and large binaries
+Test-Session/
+*.flac
+*.wav
+*.m4a
+*.mp3
+ffmpeg.exe
+ffprobe.exe
+ffplay.exe
+
+# Python / editors / OS
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store

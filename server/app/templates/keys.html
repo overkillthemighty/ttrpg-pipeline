@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}API keys{% endblock %}
+{% block content %}
+<h1>API keys</h1>
+<p class="muted">Keys let the recorder laptop upload sessions and check job status. They can't sign in to this dashboard, manage users, or delete jobs.</p>
+{% if new_key %}
+<div class="card highlight">
+  <strong>New key. Copy it now; it won't be shown again.</strong>
+  <pre class="key" id="newkey">{{ new_key }}</pre>
+  <p class="small">Put it in <code>config.json</code> on the laptop under <code>server.apiKey</code>.</p>
+</div>
+{% endif %}
+<section class="card">
+  <form method="post" action="/settings/keys" class="inline-form">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input name="name" placeholder="Name, e.g. Recorder laptop" required maxlength="80">
+    <button class="primary">Create key</button>
+  </form>
+</section>
+<section class="card flush">
+<table>
+  <tr><th>Name</th><th>Key</th><th>Created</th><th>Last used</th><th></th></tr>
+  {% for k in keys %}
+  <tr class="{{ 'revoked' if k.revoked_at }}">
+    <td>{{ k.name }}</td><td class="mono">{{ k.prefix }}…</td>
+    <td class="small">{{ k.created_at|dt }}<div class="muted">{{ k.created_by }}</div></td>
+    <td class="small">{{ k.last_used_at|dt or 'never' }}</td>
+    <td>{% if k.revoked_at %}<span class="muted">revoked</span>{% else %}
+      <form method="post" action="/settings/keys/{{ k.id }}/revoke" class="inline" onsubmit="return confirm('Revoke this key? Anything using it will stop working.')">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><button class="danger small">Revoke</button></form>{% endif %}</td>
+  </tr>
+  {% else %}<tr class="empty"><td colspan="5">No keys yet.</td></tr>{% endfor %}
+</table>
+</section>
+{% endblock %}

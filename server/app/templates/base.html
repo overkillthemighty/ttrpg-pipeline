@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="csrf-token" content="{{ csrf }}">
+<title>{% block title %}Transcription{% endblock %} · TTRPG</title>
+<link rel="icon" href="{{ asset('favicon.svg') }}" type="image/svg+xml">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="theme-color" content="#3b5bdb">
+<script>try { var t = localStorage.getItem("theme"); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch (e) {}</script>
+<link rel="stylesheet" href="{{ asset('app.css') }}">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="/"><img src="{{ asset('favicon.svg') }}" alt="" width="24" height="24">TTRPG Transcription</a>
+  <div class="top-right">
+  {% if user %}
+  <nav>
+    <a href="/">Jobs</a>
+    <a href="/record">Record</a>
+    <a href="/upload">Upload</a>
+    <a href="/client">Laptop scripts</a>
+    <a href="/settings/keys">API keys</a>
+    {% if user.is_admin %}<a href="/settings/users">Users</a>{% endif %}
+    <a href="/account">{{ user.username }}</a>
+    <form method="post" action="/logout" class="inline"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="link">Sign out</button></form>
+  </nav>
+  {% endif %}
+  <button type="button" class="theme-toggle" id="theme-toggle" title="Colour theme: Auto follows your system setting">Theme: Auto</button>
+  </div>
+</header>
+<main>
+{% if flash %}<div class="flash {{ flash.kind }}">{{ flash.msg }}</div>{% endif %}
+{% block content %}{% endblock %}
+</main>
+<script src="{{ asset('app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

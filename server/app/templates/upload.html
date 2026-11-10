@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Upload{% endblock %}
+{% block content %}
+<h1>Upload a session</h1>
+<form id="upload-form" class="card stack">
+  <div class="grid2">
+    <label>Title <input name="title" placeholder="Session {{ today }}"></label>
+    <label>Session date <input name="session_date" type="date" value="{{ today }}" required></label>
+  </div>
+
+  <fieldset>
+    <legend>Audio</legend>
+    <label class="check"><input type="radio" name="synced" value="0" checked> Raw player recordings (the server finds the clap and syncs them)</label>
+    <label class="check"><input type="radio" name="synced" value="1"> Already synced (output of <code>Sync-TTRPGLavs.ps1</code>)</label>
+    <label class="check"><input type="radio" name="synced" value="single"> Room mic only: one recording of the whole table, no lavs. Speakers can't be named from lav levels.</label>
+    <label><span id="file-label">One file per player</span> <input id="file-input" type="file" multiple accept=".wav,.flac,.mp3,.m4a,.ogg,.opus,.aac,.wma,.mka,audio/*"></label>
+    <table class="compact" id="file-table" hidden>
+      <thead><tr><th>Speaker label</th><th>File</th><th>Size</th><th class="clap-col" hidden>Clap at, s</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <p class="muted small" id="lav-hint">Labels default to Player1..N from the file names. Don't include the room mic.</p>
+    <div id="clap-opts">
+      <label>Clap
+        <select name="sync_clap">
+          <option value="auto" selected>Use the clap if it lines up; otherwise keep the tracks as recorded</option>
+          <option value="ask_if_unsure">Use the clap if it lines up; otherwise stop and ask me</option>
+          <option value="ask">Always stop and show me the clap before transcribing</option>
+          <option value="none">Ignore the clap: keep the tracks as recorded</option>
+          <option value="manual">I'll enter each track's clap time</option>
+        </select>
+      </label>
+      <p class="muted small" id="clap-manual-hint" hidden>Type each track's clap time in the table above: seconds from the start of that file (open it in Audacity and click on the clap).</p>
+    </div>
+    <div id="single-opts" class="stack" hidden>
+      {% if diarize_available %}
+      <label class="check"><input type="checkbox" name="diarize" value="1"> Guess speakers (diarization): labels lines Speaker 1, Speaker 2, ... Slower, and the labels aren't player names.</label>
+      <label><span>People at the table, <strong>including the DM</strong></span>
+        <input name="people" type="number" min="1" max="20" value="4" placeholder="e.g. 4 = 3 players + DM">
+      </label>
+      <p class="muted small">Count everyone who talks: every player plus the DM. Only used when guessing speakers. Telling diarization the exact number makes the guesses much better; leave blank to let it guess.</p>
+      {% else %}
+      <p class="muted small">Speaker guessing (diarization) is off: set <code>HF_TOKEN</code> in the server's <code>.env</code> to enable it.</p>
+      {% endif %}
+    </div>
+  </fieldset>
+
+  <details>
+    <summary>Processing options</summary>
+    <div class="grid2">
+      <label>Whisper model
+        <select name="whisper_model">
+          <option value="">Server default ({{ default_model }})</option>
+          {% for m in models %}<option>{{ m }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Language <input name="language" placeholder="en" maxlength="3"></label>
+      <label>Clap search window, seconds (raw only) <input name="sync_window_seconds" type="number" step="0.5" min="1" placeholder="10"></label>
+      <label>Clap search starts at, seconds (raw only) <input name="sync_search_start_seconds" type="number" step="0.5" min="0" placeholder="0"></label>
+      <label>Enrollment (optional) <input name="enrollment" placeholder="Player1=00:00:10-00:00:35, Player2=..."></label>
+      {% if user.can_publish %}<label class="check"><input type="checkbox" name="publish" value="1" checked> Publish results to Nextcloud</label>
+      {% else %}<p class="muted small">Results stay on this server: download them from the job page when it's done.</p>{% endif %}
+    </div>
+  </details>
+
+  <div class="row-between">
+    <div id="upload-status" class="muted"></div>
+    <button class="primary" id="upload-btn" type="submit">Upload &amp; process</button>
+  </div>
+  <div class="bar big"><span id="upload-bar" style="width:0%"></span></div>
+</form>
+{% endblock %}
+{% block scripts %}<script>TTRPG.initUpload({{ max_chunk_mb }});</script>{% endblock %}

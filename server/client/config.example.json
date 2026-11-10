@@ -1,0 +1,29 @@
+{
+  "recordingsRoot": "",
+  "mode": "lavs",
+  "playerCount": 4,
+  "channelsPerReceiver": 2,
+  "roomMic": "optional",
+  "sampleRate": 48000,
+  "segmentSeconds": 60,
+  "micCheckSeconds": 5,
+  "stallSeconds": 20,
+  "sync": {
+    "windowSeconds": 10,
+    "searchStartSeconds": 0
+  },
+  "server": {
+    "url": "https://ttrpg.example.com",
+    "apiKey": "ttrpg_paste-the-key-from-the-dashboard",
+    "chunkMB": 16,
+    "timeoutSeconds": 300
+  },
+  "processing": {
+    "whisperModel": "",
+    "language": "en",
+    "publish": true,
+    "enrollment": [],
+    "diarize": false,
+    "peopleAtTable": 4
+  }
+}

@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Users{% endblock %}
+{% block content %}
+<h1>Users</h1>
+<section class="card">
+  <h2>Add user</h2>
+  <form method="post" action="/settings/users" class="inline-form">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input name="username" placeholder="Username" required>
+    <input name="password" type="password" placeholder="Password (blank = Nextcloud sign-in only)" autocomplete="new-password">
+    <label class="check"><input type="checkbox" name="is_admin" value="1"> Admin</label>
+    <label class="check"><input type="checkbox" name="can_view_all" value="1"> See all outputs</label>
+    <label class="check"><input type="checkbox" name="can_publish" value="1"> Publish to Nextcloud</label>
+    <button class="primary">Add</button>
+  </form>
+  <ul class="small muted">
+    <li><strong>Admin</strong>: manages users, sees and manages every job and every API key. Includes <em>See all outputs</em>.</li>
+    <li><strong>See all outputs</strong>: can open other people's transcripts, downloads and logs. Without it a user still sees every job and its progress in the queue, but only their own jobs' output, and can only cancel, retry or delete their own.</li>
+    <li><strong>Publish to Nextcloud</strong>: on, the user's results are uploaded to the campaign folders in Nextcloud; off, they stay on this server and the user downloads them from each job page.</li>
+  </ul>
+  <p class="small muted">Permissions also apply to the API keys a user creates (the laptop scripts). New users start with all three off.</p>
+  {% if oidc_enabled %}<p class="small muted">For Nextcloud sign-in, add the user with the same username as their Nextcloud account and no password; their first Nextcloud sign-in links it. Users with a password link Nextcloud from their Account page.</p>{% endif %}
+</section>
+<section class="card flush">
+<table>
+  <tr><th>User</th><th>Permissions</th><th>Sign-in</th><th>Last login</th><th></th></tr>
+  {% for u in users %}
+  <tr>
+    <td>{{ u.username }}</td>
+    <td class="small perms">
+      {% for flag, label, tip in [("is_admin", "admin", "Manage users and every job"), ("can_view_all", "see all outputs", "Open other people's results and logs"), ("can_publish", "publish", "Upload results to Nextcloud")] %}
+      {% set on = u[flag] or (flag == "can_view_all" and u.is_admin) %}
+      <form method="post" action="/settings/users/{{ u.id }}/flag" class="inline">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="flag" value="{{ flag }}">
+        <input type="hidden" name="value" value="{{ '0' if u[flag] else '1' }}">
+        <label class="check" title="{{ tip }}"><input type="checkbox" {{ 'checked' if on }}
+          {{ 'disabled' if (flag == 'is_admin' and u.id == user.id) or (flag == 'can_view_all' and u.is_admin) }}
+          onchange="this.form.submit()"> {{ label }}</label>
+      </form>
+      {% endfor %}
+    </td>
+    <td class="small">{{ 'password' if u.password_hash else '' }}{% if u.oidc_sub %}{{ ' + ' if u.password_hash }}Nextcloud{% endif %}</td>
+    <td class="small">{{ u.last_login_at|dt or 'never' }}</td>
+    <td class="actions-cell">
+      <form method="post" action="/settings/users/{{ u.id }}/password" class="inline">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <input name="password" type="password" placeholder="New password" minlength="10" required autocomplete="new-password">
+        <button class="small">Set</button>
+      </form>
+      {% if u.id != user.id %}
+      <form method="post" action="/settings/users/{{ u.id }}/delete" class="inline" onsubmit="return confirm('Delete {{ u.username }}?')">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><button class="danger small">Delete</button></form>
+      {% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+</section>
+{% endblock %}

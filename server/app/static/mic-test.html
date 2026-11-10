@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mic Test</title>
+<script>try { var t = localStorage.getItem("theme"); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch (e) {}</script>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --text:#1d2330; --muted:#6b7385; --line:#e2e5eb; --accent:#3b5bdb; --ok:#2b8a3e; --warn:#b7791f; --err:#c92a2a; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#14161b; --card:#1d2027; --text:#e6e8ee; --muted:#9aa1b2; --line:#2d313b; --accent:#748ffc; --ok:#51cf66; --warn:#fcc419; --err:#ff6b6b; color-scheme: dark; } }
+  :root[data-theme="dark"] { --bg:#14161b; --card:#1d2027; --text:#e6e8ee; --muted:#9aa1b2; --line:#2d313b; --accent:#748ffc; --ok:#51cf66; --warn:#fcc419; --err:#ff6b6b; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; background:var(--bg); color:var(--text); }
+  main { max-width: 980px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 1.5rem; margin: 0 0 6px; }
+  .muted { color: var(--muted); } .small { font-size: .85rem; }
+  button { font: inherit; cursor: pointer; border: 1px solid var(--line); background: var(--card); color: var(--text); padding: 8px 16px; border-radius: 6px; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin: 12px 0; }
+  .dev h2 { font-size: 1rem; margin: 0 0 4px; }
+  .facts { font-family: ui-monospace, Consolas, monospace; font-size: .82rem; color: var(--muted); }
+  .ch { display: grid; grid-template-columns: 70px 1fr 90px 90px; gap: 10px; align-items: center; margin-top: 6px; font-size: .9rem; }
+  .meter { height: 12px; background: var(--line); border-radius: 99px; overflow: hidden; }
+  .meter span { display: block; height: 100%; width: 0; background: var(--ok); }
+  .verdict { margin-top: 8px; font-weight: 600; }
+  .good { color: var(--ok); } .bad { color: var(--err); } .warn { color: var(--warn); }
+  textarea { width: 100%; min-height: 220px; font: .8rem ui-monospace, Consolas, monospace; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 8px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Mic test</h1>
+  <p class="muted">Opens every microphone at once, the way a multi-mic browser recorder would, and checks whether each one really delivers two separate channels. Nothing is recorded or sent anywhere.</p>
+  <div class="card">
+    <ol class="small">
+      <li>Press <strong>Start test</strong> and allow microphone access.</li>
+      <li>Have each person with a lav talk for a few seconds, <strong>one at a time</strong> (or tap each lav mic). Then say something into the room mic.</li>
+      <li>After about 30 seconds press <strong>Copy results</strong> and paste them back to Claude.</li>
+    </ol>
+    <details class="small" style="margin:8px 0"><summary>Record page comparison (for troubleshooting)</summary>
+      <label><input type="checkbox" id="optNoUnlock"> Don't open the default microphone first</label><br>
+      <label><input type="checkbox" id="optLateCtx"> Start the meters after opening the mics, with default latency</label><br>
+      <label><input type="checkbox" id="optVoiceIso"> Also ask for voice isolation off</label><br>
+      <label><input type="checkbox" id="optReceiversOnly"> Open only microphones with "Rx" or "Receiver" in the name</label>
+    </details>
+    <div class="row"><button class="primary" id="start">Start test</button><button id="stop" disabled>Stop</button><button id="copy" disabled>Copy results</button><span id="status" class="muted small"></span></div>
+  </div>
+  <div id="devs"></div>
+  <div class="card"><textarea id="report" readonly placeholder="Results appear here."></textarea></div>
+</main>
+<script>
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const db = (x) => x > 0 ? 20 * Math.log10(x) : -120;
+  let ctx = null, raf = 0, devices = [], started = 0, unlock = null, listed = [];
+
+  const opt = (id) => $(id).checked;
+  function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+
+  async function openDevice(d) {
+    const rec = { label: d.label || "(no name)", id: d.deviceId, error: null, settings: null, caps: null, ch: [], diffSum: 0, sumSq: 0, frames: 0, sameFrames: 0, activeFrames: 0 };
+    try {
+      const audio = { deviceId: { exact: d.deviceId }, channelCount: { ideal: 2 },
+        echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+      if (opt("optVoiceIso")) audio.voiceIsolation = false;
+      const stream = await navigator.mediaDevices.getUserMedia({ audio });
+      const track = stream.getAudioTracks()[0];
+      rec.stream = stream;
+      rec.settings = track.getSettings ? track.getSettings() : {};
+      try { rec.caps = track.getCapabilities ? track.getCapabilities() : null; } catch (_) { rec.caps = null; }
+      rec.stream = stream;
+      if (opt("optLateCtx")) return rec;   // the audio graph is built after every mic is open
+      attach(rec);
+    } catch (e) {
+      rec.error = `${e.name}: ${e.message}`;
+    }
+    return rec;
+  }
+
+  function attach(rec) {
+    try {
+      const stream = rec.stream, track = stream.getAudioTracks()[0];
+      const src = ctx.createMediaStreamSource(stream);
+      const n = Math.max(1, Math.min(2, src.channelCount || rec.settings.channelCount || 1));
+      // Force the node to keep the device's channels separate (no up/down mixing).
+      const split = ctx.createChannelSplitter(2);
+      src.connect(split);
+      for (let c = 0; c < 2; c++) {
+        const an = ctx.createAnalyser(); an.fftSize = 2048;
+        split.connect(an, c);
+        rec.ch.push({ an, buf: new Float32Array(an.fftSize), peak: 0, maxPeakDb: -120, rmsSum: 0, n: 0 });
+      }
+      rec.reportedChannels = n;
+      track.onended = () => { rec.error = "track ended (device unplugged or taken by another app)"; };
+    } catch (e) {
+      rec.error = `${e.name}: ${e.message}`;
+    }
+    return rec;
+  }
+
+  function buildUi() {
+    const box = $("devs"); box.innerHTML = "";
+    for (const r of devices) {
+      const card = el("div", "card dev");
+      card.appendChild(el("h2", null, r.label));
+      const s = r.settings || {};
+      card.appendChild(el("div", "facts", r.error ? r.error :
+        `channelCount=${s.channelCount ?? "?"}  sampleRate=${s.sampleRate ?? "?"}  latency=${s.latency != null ? (s.latency * 1000).toFixed(0) + "ms" : "?"}  ` +
+        `EC=${s.echoCancellation} NS=${s.noiseSuppression} AGC=${s.autoGainControl}` +
+        (r.caps && r.caps.channelCount ? `  device supports channels ${r.caps.channelCount.min}-${r.caps.channelCount.max}` : "")));
+      r.ui = { meters: [], peaks: [], rms: [], verdict: el("div", "verdict muted", "listening...") };
+      r.ch.forEach((c, i) => {
+        const row = el("div", "ch");
+        row.appendChild(el("span", null, i === 0 ? "Left / 1" : "Right / 2"));
+        const m = el("div", "meter"), bar = el("span"); m.appendChild(bar); row.appendChild(m);
+        const pk = el("span", "small mono"), rm = el("span", "small muted");
+        row.appendChild(pk); row.appendChild(rm);
+        card.appendChild(row);
+        r.ui.meters.push(bar); r.ui.peaks.push(pk); r.ui.rms.push(rm);
+      });
+      card.appendChild(r.ui.verdict);
+      box.appendChild(card);
+    }
+  }
+
+  function verdict(r) {
+    if (r.error) return ["bad", "Could not open: " + r.error];
+    const s = r.settings || {};
+    if ((s.channelCount || r.reportedChannels) < 2) return ["warn", "Mono: the browser delivers 1 channel. Fine for a single mic; a 2-person receiver would be merged."];
+    if (r.activeFrames < 20) return ["muted", "Stereo reported. Talk into each channel to check they are really separate."];
+    const same = r.sameFrames / r.activeFrames;
+    const L = r.ch[0].maxPeakDb, R = r.ch[1].maxPeakDb;
+    if (same > 0.95) return ["bad", "Stereo reported, but left and right are identical: the channels were merged (fake stereo)."];
+    if (R < -80 && L > -60) return ["warn", "Only the left channel has sound so far. Talk into the second lav."];
+    if (L < -80 && R > -60) return ["warn", "Only the right channel has sound so far. Talk into the first lav."];
+    return ["good", `True stereo: left and right differ (${Math.round((1 - same) * 100)}% of the time). Two lavs on this receiver can be kept apart.`];
+  }
+
+  function tick() {
+    for (const r of devices) {
+      if (r.error || !r.ch.length) continue;
+      r.ch.forEach((c, i) => {
+        c.an.getFloatTimeDomainData(c.buf);
+        let p = 0, sq = 0; for (const v of c.buf) { const a = Math.abs(v); if (a > p) p = a; sq += v * v; }
+        c.peak = p; const pd = db(p); if (pd > c.maxPeakDb) c.maxPeakDb = pd;
+        c.rmsSum += sq / c.buf.length; c.n++;
+        r.ui.meters[i].style.width = Math.max(0, Math.min(100, (pd + 60) / 60 * 100)).toFixed(0) + "%";
+        r.ui.peaks[i].textContent = `max ${c.maxPeakDb.toFixed(0)} dB`;
+        r.ui.rms[i].textContent = `avg ${db(Math.sqrt(c.rmsSum / c.n)).toFixed(0)} dB`;
+      });
+      if (r.ch.length === 2) {
+        const a = r.ch[0].buf, b = r.ch[1].buf;
+        let energy = 0, diff = 0;
+        for (let k = 0; k < a.length; k++) { energy += a[k] * a[k] + b[k] * b[k]; const d = a[k] - b[k]; diff += d * d; }
+        if (energy / a.length > 1e-7) {           // only judge when there is sound
+          r.activeFrames++;
+          if (diff / (energy + 1e-12) < 1e-4) r.sameFrames++;
+        }
+      }
+      const [cls, text] = verdict(r);
+      r.ui.verdict.className = "verdict " + cls; r.ui.verdict.textContent = text;
+    }
+    $("status").textContent = `${Math.round((Date.now() - started) / 1000)} s`;
+    raf = requestAnimationFrame(tick);
+  }
+
+  function report() {
+    const lines = [`Mic test ${new Date().toISOString()}`, `Browser: ${navigator.userAgent}`, `Page: ${location.protocol}`, `Options: ${["optNoUnlock", "optLateCtx", "optVoiceIso", "optReceiversOnly"].filter(opt).join(", ") || "none"}${new URLSearchParams(location.search).has("autostart") ? ", autostart (no click)" : ""}`, `Origin: ${location.origin}`, `Microphone function: ${/\[native code\]/.test(Function.prototype.toString.call(navigator.mediaDevices.getUserMedia)) ? "native" : "REPLACED by something in the browser (extension?)"}`, `AudioContext rate: ${ctx ? ctx.sampleRate : "?"}`, `Duration: ${Math.round((Date.now() - started) / 1000)} s`,
+      `Devices listed by the browser (${listed.length}):`, ...listed.map((x) => "    " + x), ""];
+    devices.forEach((r, i) => {
+      lines.push(`[${i + 1}] ${r.label}`);
+      if (r.error) { lines.push(`    ERROR ${r.error}`); return; }
+      const s = r.settings || {};
+      lines.push(`    settings: channelCount=${s.channelCount} sampleRate=${s.sampleRate} latency=${s.latency} EC=${s.echoCancellation} NS=${s.noiseSuppression} AGC=${s.autoGainControl}`);
+      if (r.caps) lines.push(`    capabilities: channelCount=${JSON.stringify(r.caps.channelCount)} sampleRate=${JSON.stringify(r.caps.sampleRate)}`);
+      r.ch.forEach((c, k) => lines.push(`    ch${k + 1}: max ${c.maxPeakDb.toFixed(1)} dB, avg ${db(Math.sqrt(c.rmsSum / Math.max(1, c.n))).toFixed(1)} dB`));
+      lines.push(`    identical L/R while sound: ${r.activeFrames ? Math.round(r.sameFrames / r.activeFrames * 100) : "n/a"}% of ${r.activeFrames} frames`);
+      lines.push(`    verdict: ${verdict(r)[1]}`);
+    });
+    return lines.join("\n");
+  }
+
+  $("start").onclick = async () => {
+    $("start").disabled = true; $("status").textContent = "Asking for microphone access...";
+    // One permission covers every microphone. Keep this first stream open while listing and testing:
+    // with a one-time ("allow this time") grant, Chrome hides the other mics again once all streams stop.
+    try {
+      unlock = await navigator.mediaDevices.getUserMedia(opt("optNoUnlock")
+        ? { audio: { channelCount: { ideal: 2 }, echoCancellation: false, noiseSuppression: false, autoGainControl: false } }
+        : { audio: true });
+      if (opt("optNoUnlock")) { /* only used to reveal the list, then closed like the Record page */ }
+    } catch (e) { $("status").textContent = "Microphone access refused: " + e.message; $("start").disabled = false; return; }
+    const all = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "audioinput");
+    listed = all.map((d) => `${d.deviceId ? d.deviceId.slice(0, 8) : "(no id)"}  ${d.label || "(no name)"}`);
+    // "default" and "communications" are aliases of a real device on Windows; skip them so each mic opens once.
+    let list = all.filter((d) => d.deviceId && d.deviceId !== "default" && d.deviceId !== "communications");
+    if (opt("optReceiversOnly")) list = list.filter((d) => /rx|receiver/i.test(d.label));
+    if (opt("optNoUnlock")) { unlock.getTracks().forEach((t) => t.stop()); unlock = null; }
+    if (!list.length) {
+      $("status").textContent = location.protocol === "file:"
+        ? `The browser found ${all.length} microphone(s) but won't give a page opened as a file their IDs. Run tools\\Serve-MicTest.ps1 and use the address it opens instead.`
+        : "The browser didn't reveal the microphone list. Reload, press Start again and choose \"Allow while visiting the site\".";
+      unlock.getTracks().forEach((t) => t.stop()); unlock = null; $("start").disabled = false; return;
+    }
+    if (!opt("optLateCtx")) ctx = new AudioContext({ latencyHint: "playback" });
+    $("status").textContent = `Opening ${list.length} microphone(s)...`;
+    devices = [];
+    for (const d of list) devices.push(await openDevice(d));
+    if (opt("optLateCtx")) { ctx = new AudioContext(); devices.forEach((r) => { if (!r.error) attach(r); }); }
+    buildUi();
+    started = Date.now();
+    tick();
+    $("stop").disabled = false; $("copy").disabled = false;
+  };
+  $("stop").onclick = () => {
+    cancelAnimationFrame(raf);
+    $("report").value = report();
+    devices.forEach((r) => r.stream && r.stream.getTracks().forEach((t) => t.stop()));
+    if (unlock) { unlock.getTracks().forEach((t) => t.stop()); unlock = null; }
+    ctx = null;
+    if (ctx) ctx.close();
+    $("stop").disabled = true; $("start").disabled = false; $("status").textContent = "Stopped.";
+  };
+  $("copy").onclick = async () => {
+    const text = report();
+    $("report").value = text;
+    try { await navigator.clipboard.writeText(text); $("status").textContent = "Copied. Paste it back to Claude."; }
+    catch (_) { $("report").select(); $("status").textContent = "Select the text below and copy it."; }
+  };
+  // ?all ticks every comparison box; ?autostart opens the mics on load, without a click (like the Record page).
+  const q = new URLSearchParams(location.search);
+  if (q.has("all")) ["optNoUnlock", "optLateCtx", "optVoiceIso", "optReceiversOnly"].forEach((id) => { $(id).checked = true; });
+  if (q.has("autostart")) setTimeout(() => $("start").onclick(), 300);
+  if (!navigator.mediaDevices) { $("status").textContent = "This browser can't access microphones here. Open the file in Chrome or Edge."; $("start").disabled = true; }
+})();
+</script>
+</body>
+</html>

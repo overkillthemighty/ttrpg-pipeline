@@ -1,0 +1,11 @@
+* text=auto
+# Run inside the Linux container: must keep LF endings even when checked out on Windows.
+*.sh text eol=lf
+*.py text eol=lf
+Dockerfile text eol=lf
+*.yml text eol=lf
+# Windows scripts
+*.ps1 text eol=crlf
+# Binary
+*.png binary
+*.ico binary

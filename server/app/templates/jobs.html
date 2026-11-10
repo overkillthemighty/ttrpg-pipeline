@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Jobs{% endblock %}
+{% block content %}
+<div class="row-between">
+  <h1>Jobs</h1>
+  <a class="button primary" href="/upload">Upload a session</a>
+</div>
+{% if not nextcloud_enabled %}<div class="flash warn">Nextcloud isn't configured, so results stay on this server only (download them from each job).</div>{% endif %}
+<div class="card flush">
+<table class="jobs">
+  <thead><tr><th>Session</th><th>Date</th><th>Status</th><th class="grow">Progress</th><th>Submitted</th></tr></thead>
+  <tbody id="job-rows">
+  {% for j in jobs %}
+    <tr data-id="{{ j.id }}">
+      <td><a href="/jobs/{{ j.id }}">{{ j.title }}</a><div class="muted small">{{ j.id }}</div></td>
+      <td>{{ j.session_date }}</td>
+      <td><span class="badge {{ j.status }}">{{ j.status }}</span></td>
+      <td><div class="bar {{ j.status }}"><span style="width: {{ j.percent|round(0) }}%"></span></div><div class="muted small">{{ j.message or '' }}</div></td>
+      <td class="small">{{ j.created_at|dt }}<div class="muted">{{ j.submitted_by }}</div></td>
+    </tr>
+  {% else %}
+    <tr class="empty"><td colspan="5">No jobs yet. Submit one with <code>Submit-Session.ps1</code> or the Upload page.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}
+{% block scripts %}<script>TTRPG.pollJobList();</script>{% endblock %}

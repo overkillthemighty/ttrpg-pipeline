@@ -1,0 +1,15 @@
+# NVIDIA GPU override. Needs the NVIDIA driver + nvidia-container-toolkit on the Docker host.
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
+services:
+  ttrpg:
+    build:
+      args:
+        TORCH_VARIANT: cu128
+    image: ttrpg-transcriber:gpu
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

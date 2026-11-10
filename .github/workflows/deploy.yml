@@ -1,0 +1,66 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# One deploy at a time. A push during a deploy waits; if several pile up, only the newest runs.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360   # the longest GitHub allows; covers waiting for a long transcription
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: server/requirements.txt
+
+      - name: Install
+        run: pip install -r server/requirements.txt pytest
+
+      - name: Compile
+        run: python -m compileall -q server/app
+
+      - name: Test
+        working-directory: server
+        run: python -m pytest -q tests
+
+      # Don't restart the server under a running job, a queued job, a laptop upload or a browser
+      # recording. Set the repository variable IDLE_URL (Settings > Secrets and variables > Actions >
+      # Variables) to https://<your site>/api/v1/health/idle. Without it, this step is skipped.
+      - name: Wait until the server is idle
+        if: ${{ vars.IDLE_URL != '' }}
+        env:
+          IDLE_URL: ${{ vars.IDLE_URL }}
+        run: |
+          while true; do
+            body=$(curl -sS --max-time 15 "$IDLE_URL" || echo '{"reasons":["server not reachable"]}')
+            if echo "$body" | grep -q '"idle":true'; then echo "Server is idle: deploying."; break; fi
+            echo "$(date -u +%H:%M:%S) waiting: $body"
+            sleep 60
+          done
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+      - name: Add known_hosts
+        run: |
+          ssh-keyscan -p 8022 -H ssh.jeffmunk.info >> ~/.ssh/known_hosts
+
+      - name: Trigger deploy
+        run: |
+          ssh -p 8022 -i ~/.ssh/id_ed25519 deploy@ssh.jeffmunk.info "${{ github.event.repository.name }}"

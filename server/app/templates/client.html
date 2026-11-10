@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Laptop scripts{% endblock %}
+{% block content %}
+<h1>Laptop scripts</h1>
+<p class="muted">The recording, sync and upload scripts for the Windows laptop. Version <span class="mono">{{ version }}</span>.</p>
+{% if not available %}
+<div class="flash err">The scripts are missing from this server image. Rebuild it with the <code>client</code> folder next to <code>app</code>.</div>
+{% else %}
+<section class="card">
+  <h2>New laptop</h2>
+  <p>Creates a new API key and puts it, with this server's address, in a ready-to-use <code>config.json</code> inside the zip.</p>
+  <form method="post" action="/client/download" class="inline-form">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input name="name" value="Recorder laptop" required maxlength="80" aria-label="Key name">
+    <button class="primary">Download with a new API key</button>
+  </form>
+  <p class="small muted">The key is only in the zip; treat the zip like a password. Revoke it under <a href="/settings/keys">API keys</a> if it leaks. Extracting this zip over an existing setup replaces its <code>config.json</code>.</p>
+</section>
+<section class="card">
+  <h2>Update existing scripts</h2>
+  <p>Scripts only, no <code>config.json</code>, so extracting over your recorder folder keeps your settings and key.</p>
+  <a class="button" href="/client/download">Download scripts</a>
+</section>
+<section class="card">
+  <h2>Installing</h2>
+  <ol>
+    <li>Right-click the zip, choose <strong>Properties</strong>, tick <strong>Unblock</strong>, then extract. Otherwise PowerShell may refuse to run the scripts (fix afterwards with <code>Get-ChildItem *.ps1 | Unblock-File</code>).</li>
+    <li>Extract next to <code>ffmpeg.exe</code> and <code>ffprobe.exe</code> (they aren't included).</li>
+    <li>Run <code>.\record.ps1</code>.</li>
+  </ol>
+  <p class="small muted">Server address used in the zip: <span class="mono">{{ server_url }}</span>{% if not server_url.startswith('https://') %} (set <code>BASE_URL</code> in <code>.env</code> to the HTTPS address){% endif %}</p>
+</section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}{{ job.title }}{% endblock %}
+{% block content %}
+<p><a href="/">&larr; All jobs</a></p>
+<div class="row-between">
+  <div>
+    <h1>{{ job.title }}</h1>
+    <div class="muted">Session date {{ job.session_date }} · job {{ job.id }} · from {{ job.submitted_by }} ({{ job.source }}){% if job.client_ref %} · {{ job.client_ref }}{% endif %}</div>
+  </div>
+  {% if job.can_manage %}
+  <div class="actions" id="actions" data-id="{{ job.id }}">
+    <button data-act="cancel">Cancel</button>
+    <button data-act="retry">Retry</button>
+    <button data-act="retry-clean" title="Discard cached intermediate files and start over">Retry from scratch</button>
+    <button data-act="delete" class="danger">Delete</button>
+  </div>
+  {% endif %}
+</div>
+
+<section class="card">
+  <div class="row-between">
+    <div><span class="badge {{ job.status }}" id="status">{{ job.status }}</span> <span id="stage" class="muted">{{ job.stage or '' }}</span></div>
+    <div id="pct" class="mono">{{ job.percent|round(1) }}%</div>
+  </div>
+  <div class="bar big {{ job.status }}" id="barwrap"><span id="bar" style="width: {{ job.percent }}%"></span></div>
+  <p id="message">{{ job.message or '' }}</p>
+  <p id="error" class="err-text"{% if not job.error %} hidden{% endif %}>{{ job.error or '' }}</p>
+</section>
+
+{% if not job.can_see_output %}
+<section class="card"><p class="muted">This is {{ job.owner or "someone else" }}'s job: you can follow its progress, but its transcript, downloads and log are only visible to its owner, admins and users allowed to see all outputs.</p></section>
+{% endif %}
+
+{% if job.can_see_output and not job.synced and job.options.mode != "single" and job.files|length > 1 %}
+{% set s = job.results.sync if job.results and job.results.sync else none %}
+<section class="card{% if job.status == 'review' %} highlight{% endif %}" id="clap-card">
+  <h2>Clap sync</h2>
+  <p id="clap-summary">
+  {%- if not s -%}
+    {{ "The clap is found when processing starts." if job.status in ["uploading", "queued", "running"] else "No clap information yet." }}
+  {%- elif s.used == "waiting" -%}
+    <strong>Waiting for you.</strong>
+    {% if s.lines_up %}The clap lines up across tracks (within {{ (s.spread_seconds * 1000)|round|int }} ms).
+    {% else %}The clap doesn't line up: the times are {{ '%.2f'|format(s.spread_seconds) }} s apart, so it probably wasn't found on every track.{% endif %}
+    Choose how to sync below.
+  {%- elif s.used == "clap" -%}
+    {% if s.lines_up %}Lined up on the clap (found within {{ (s.spread_seconds * 1000)|round|int }} ms on every track).
+    {% else %}Lined up on the clap as found, although the times are {{ '%.2f'|format(s.spread_seconds) }} s apart.{% endif %}
+  {%- elif s.used == "manual" -%}
+    Lined up on the clap times you entered.
+  {%- elif s.used == "none" -%}
+    {% if s.mode == "none" %}Clap ignored: the tracks were kept as recorded.
+    {% else %}The clap didn't line up ({{ '%.2f'|format(s.spread_seconds) }} s apart), so the tracks were kept as recorded. They start together, so they're usually within ~0.1 s.{% endif %}
+  {%- else -%}
+    Only one track: nothing to line up.
+  {%- endif -%}
+  </p>
+  {% if s and s.clap_seconds %}
+  <table class="compact">
+    <tr><th>Track</th><th>Clap at</th><th>Strength</th><th>Trimmed</th></tr>
+    {% for f in job.files %}
+    <tr><td>{{ f.name }}</td>
+      <td class="mono">{% if f.name in s.clap_seconds %}{{ '%.3f'|format(s.clap_seconds[f.name]) }} s{% endif %}</td>
+      <td class="mono small">{% if s.strength and f.name in s.strength %}{{ '%.4f'|format(s.strength[f.name]) }}{% endif %}</td>
+      <td class="mono">{% if s.trim_seconds and f.name in s.trim_seconds %}{{ '%.1f'|format(s.trim_seconds[f.name] * 1000) }} ms{% endif %}</td></tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+  {% if can_resync %}
+  <form id="clap-form" class="stack">
+    <label class="check"><input type="radio" name="clap" value="clap"{% if s and s.clap_seconds and s.lines_up %} checked{% endif %}> {{ "Use the clap found above" if s and s.strength else "Find the clap and use it" }}</label>
+    <label class="check"><input type="radio" name="clap" value="none"{% if not (s and s.clap_seconds and s.lines_up) %} checked{% endif %}> Ignore the clap: keep the tracks as recorded (they start together, usually within ~0.1 s)</label>
+    <label class="check"><input type="radio" name="clap" value="manual"> Enter each track's clap time myself</label>
+    <div id="clap-times" class="stack" hidden>
+      <p class="muted small">Seconds from the start of each track's uploaded file (open it in Audacity and click on the clap).</p>
+      <div class="grid4">
+      {% for f in job.files %}
+        <label>{{ f.name }} <input data-name="{{ f.name }}" type="number" step="0.001" min="0"
+          value="{% if s and s.clap_seconds and f.name in s.clap_seconds %}{{ '%.3f'|format(s.clap_seconds[f.name]) }}{% endif %}"></label>
+      {% endfor %}
+      </div>
+    </div>
+    <div><button class="primary" type="submit">{{ "Continue" if job.status == "review" else "Re-sync and process again" }}</button>
+      <span class="muted small">Only the sync and the steps after it run again; the upload is reused.</span></div>
+  </form>
+  {% endif %}
+</section>
+{% endif %}
+
+<div class="grid2">
+  <section class="card">
+    <h2>Uploaded audio</h2>
+    <table class="compact" id="files">
+      <tr><th>Name</th><th>File</th><th>Received</th></tr>
+      {% for f in job.files %}
+      <tr><td>{{ f.name }}</td><td class="small">{{ f.filename }}</td><td class="mono small">{{ (f.received / 1048576)|round(1) }} / {{ (f.size / 1048576)|round(1) }} MB</td></tr>
+      {% endfor %}
+    </table>
+    <p class="muted small">{% if job.options.mode == "single" %}Room mic only{{ ", speakers guessed by diarization" if job.options.diarize else ", no speaker labels" }}{% else %}{{ "Already synced locally" if job.synced else "Raw tracks: synced on the server" }}{% endif %}</p>
+  </section>
+  {% if job.can_see_output %}
+  <section class="card">
+    <h2>Results</h2>
+    <ul id="results" class="plain">
+      {% for n in final_names %}<li data-name="{{ n }}">{% if n in job.final_files %}<a href="/api/v1/jobs/{{ job.id }}/final/{{ n }}">{{ n }}</a>{% else %}<span class="muted">{{ n }}</span>{% endif %}</li>{% endfor %}
+    </ul>
+    <div id="published" class="small">
+    {% if job.results.nextcloud %}Published to Nextcloud: <code>{{ job.results.nextcloud.folder }}</code>
+    {% elif job.options.publish_blocked %}<span class="muted">Not published to Nextcloud (this account keeps its results on the server). Download the files above.</span>{% endif %}
+    </div>
+    {% if job.results.labels %}<details class="small"><summary>Speaker summary</summary><pre>{{ job.results.labels|tojson(indent=1) }}</pre></details>{% endif %}
+  </section>
+  {% endif %}
+</div>
+
+{% if job.can_see_output %}
+<section class="card">
+  <div class="row-between"><h2>Log</h2><a class="small" href="/api/v1/jobs/{{ job.id }}/log">Full log</a></div>
+  <pre class="log" id="log">{{ job.log_tail }}</pre>
+</section>
+{% endif %}
+{% endblock %}
+{% block scripts %}<script>TTRPG.pollJob("{{ job.id }}", "{{ job.status }}");</script>{% endblock %}

@@ -1,0 +1,23 @@
+services:
+  ttrpg:
+    build:
+      context: .
+      args:
+        TORCH_VARIANT: cpu
+    image: ttrpg-transcriber:cpu
+    container_name: ttrpg-transcriber
+    restart: unless-stopped
+    # On stop/update: up to 20 s to finish in-flight uploads, then the running job is put back in the queue.
+    stop_grace_period: 45s
+    env_file: .env
+    volumes:
+      - ./data:/data
+    ports:
+      # Host port comes from HOST_PORT in .env (default 8054). Point NPM at http://<docker-host>:8054
+      - "${HOST_PORT:-8054}:8000"
+    # If NPM runs in Docker on this host, you can instead drop `ports` and join its network:
+    # networks: [npm]
+# networks:
+#   npm:
+#     external: true
+#     name: <your NPM network>

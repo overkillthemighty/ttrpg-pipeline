@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Record{% endblock %}
+{% block content %}
+<h1>Record in the browser</h1>
+<p class="muted">Record the lav receivers or a single room mic straight from this page. Audio is saved in this browser and sent to the server every few seconds while you record, so a dropped connection only delays the upload.</p>
+
+<div id="rec-unsupported" class="flash err" hidden></div>
+<div id="rec-hooked" class="flash err" hidden></div>
+<div id="rec-other-tab" class="flash err" hidden>The recorder is already open in another tab or window. Use that one, or close it and reload this page.</div>
+
+<section class="card highlight" id="rec-resume" hidden>
+  <h2>Unfinished recording in this browser</h2>
+  <p id="rec-resume-text"></p>
+  <div class="actions">
+    <button class="primary" id="rec-resume-btn">Resume recording (new part)</button>
+    <button id="rec-resume-finish">Finish &amp; process</button>
+    <button class="danger" id="rec-resume-discard">Discard</button>
+  </div>
+</section>
+
+<section class="card" id="rec-setup">
+  <div class="row-between">
+    <fieldset class="mode-pick">
+      <legend>What are you recording?</legend>
+      <label class="check"><input type="radio" name="rec-mode" value="lavs" checked> Lav receivers (each player on their own lav)</label>
+      <label class="check"><input type="radio" name="rec-mode" value="single"> Room mic only (one microphone for the whole table)</label>
+    </fieldset>
+    <div class="actions">
+      <button id="rec-allow" class="primary" type="button">Allow microphones</button>
+      <button id="rec-refresh" type="button" hidden>Refresh list</button>
+    </div>
+  </div>
+  <p class="muted small" id="rec-device-note">Allow microphone access to list the microphones. One permission covers all of them.</p>
+  <details class="small muted"><summary>Channels moving together?</summary>
+    Each receiver's left and right meters should move separately (tap one lav at a time). If both move in unison the page says so under that receiver. Close other apps that use the receivers (Teams, Discord, Zoom), turn off Windows "Audio enhancements" for the receiver (Settings &gt; Sound &gt; the receiver's input), then press Refresh list.
+    <div><button type="button" class="small" id="rec-diag">Copy diagnostics</button>
+      <a class="button small" href="/static/mic-test.html?all" target="_blank" rel="noopener">Mic test on this site</a></div>
+  </details>
+  <div id="rec-saved-warning" class="flash err" hidden></div>
+  <div id="rec-storage-warn" class="flash err" hidden></div>
+
+  <div id="rec-lavs">
+    <div id="rec-receivers"></div>
+    <div class="row-between">
+      <button type="button" id="rec-add-rx">Add receiver</button>
+      <label class="inline-label">Clap
+        <select id="rec-clap">
+          <option value="auto">Line the mics up on the clap when it lines up (default)</option>
+          <option value="none">Ignore the clap: use the browser's start times</option>
+        </select>
+      </label>
+    </div>
+    <p class="muted small">Player names are optional (letters, digits, <code>_ . -</code>, no spaces); blank uses Player1, Player2, ... in order. Tick <em>not used</em> for an empty channel. Clap once, loudly, right after starting and after any restart.</p>
+  </div>
+
+  <div id="rec-single" hidden>
+    <div class="inline-form">
+      <select id="rec-device" aria-label="Microphone" disabled><option>Allow microphone access first</option></select>
+    </div>
+    <div class="meter" aria-hidden="true"><span id="rec-level"></span></div>
+    <label class="check"><input type="checkbox" id="rec-processing"> Let the browser clean up the audio (noise suppression, echo cancellation, auto gain). Usually better off for a room mic.</label>
+    {% if diarize_available %}
+    <label class="check"><input type="checkbox" id="rec-diarize"> Guess speakers (diarization): labels lines Speaker 1, Speaker 2, ... Slower, and the labels aren't player names.</label>
+    <label><span>People at the table, <strong>including the DM</strong></span>
+      <input id="rec-people" type="number" min="1" max="20" value="4" placeholder="e.g. 4 = 3 players + DM">
+    </label>
+    {% else %}
+    <p class="muted small">Speaker guessing (diarization) is off: set <code>HF_TOKEN</code> in the server's <code>.env</code> to enable it.</p>
+    {% endif %}
+  </div>
+
+  <div class="grid2">
+    <label>Title <input id="rec-title" placeholder="Session {{ today }}"></label>
+    <label>Session date <input id="rec-date" type="date" value="{{ today }}" required></label>
+  </div>
+  {% if user.can_publish %}<label class="check"><input type="checkbox" id="rec-publish" checked> Publish results to Nextcloud</label>
+  {% else %}<p class="muted small">Results stay on this server: download them from the job page when it's done.</p>{% endif %}
+</section>
+
+<section class="card" id="rec-panel">
+  <div class="row-between">
+    <div>
+      <div class="rec-clock mono" id="rec-clock">00:00:00</div>
+      <div class="muted" id="rec-state">Not recording</div>
+    </div>
+    <div class="actions">
+      <button class="primary big" id="rec-start" disabled>Start recording</button>
+      <button class="danger big" id="rec-stop" hidden>Stop</button>
+    </div>
+  </div>
+  <p class="clap-now" id="rec-clap-now" hidden>CLAP ONCE, LOUDLY, NOW</p>
+  <p class="keep-open" id="rec-keep-open" hidden>&#9679; Recording. Keep this page open until the job opens.</p>
+  <div class="finish-box" id="rec-finish" hidden>
+    <p class="finish-title" id="rec-finish-title"></p>
+    <div class="bar big"><span id="rec-finish-bar" style="width:0%"></span></div>
+    <ol class="finish-steps" id="rec-finish-steps"></ol>
+    <p class="muted small" id="rec-finish-note"></p>
+  </div>
+  <p class="small" id="rec-upload">Nothing to upload.</p>
+  <p class="small muted" id="rec-storage"></p>
+  <p class="err-text" id="rec-error" hidden></p>
+  <p class="muted small">Keep this tab open while recording; closing it stops the recording (other apps that use a receiver, such as Teams or Discord, also block it). If the tab or browser closes, reopen this page: it offers to resume as a new part and nothing already recorded is lost.</p>
+</section>
+
+<section class="card" id="rec-server" hidden>
+  <h2>Unfinished recordings on the server</h2>
+  <p class="muted small">Recordings started from this page that were never finished, for example on another computer. Finishing uses whatever audio reached the server.</p>
+  <table class="compact"><thead><tr><th>Title</th><th>Date</th><th>Players</th><th>Audio</th><th>Last upload</th><th></th></tr></thead><tbody id="rec-server-rows"></tbody></table>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ asset('record.js') }}"></script>{% endblock %}
