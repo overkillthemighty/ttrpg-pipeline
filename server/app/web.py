@@ -82,6 +82,7 @@ def _admin(request: Request) -> dict:
 def render(request: Request, name: str, user: dict | None, **ctx) -> HTMLResponse:
     ctx.update(user=user, csrf=security.csrf_token(request), oidc_enabled=settings.oidc_enabled,
                oidc_label=settings.oidc_button_label, nextcloud_enabled=settings.nextcloud_enabled,
+               repo_url=settings.repo_url,
                flash=request.session.pop("flash", None))
     return templates.TemplateResponse(request, name, ctx)
 

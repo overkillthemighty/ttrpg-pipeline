@@ -44,8 +44,20 @@ jobs:
         env:
           IDLE_URL: ${{ vars.IDLE_URL }}
         run: |
+          case "$IDLE_URL" in
+            http://*|https://*) ;;
+            *) echo "::error::IDLE_URL must start with http:// or https:// (got '$IDLE_URL')"; exit 1 ;;
+          esac
+          if echo "$IDLE_URL" | grep -q '[[:space:]<>]'; then
+            echo "::error::IDLE_URL contains spaces or < >: '$IDLE_URL'"; exit 1
+          fi
           while true; do
-            body=$(curl -sS --max-time 15 "$IDLE_URL" || echo '{"reasons":["server not reachable"]}')
+            set +e
+            body=$(curl -sS --max-time 15 "$IDLE_URL" 2>&1); rc=$?
+            set -e
+            if [ $rc -eq 3 ] || [ $rc -eq 6 ]; then
+              echo "::error::curl can't use IDLE_URL ($body). Fix the repository variable."; exit 1
+            fi
             if echo "$body" | grep -q '"idle":true'; then echo "Server is idle: deploying."; break; fi
             echo "$(date -u +%H:%M:%S) waiting: $body"
             sleep 60

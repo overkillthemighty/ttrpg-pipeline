@@ -42,6 +42,7 @@ class Settings:
     data_dir: Path
     secret_key: str
     base_url: str
+    repo_url: str
     cookie_secure: bool
     session_days: int
 
@@ -136,6 +137,7 @@ def load() -> Settings:
         oidc_groups_claim=_str("OIDC_GROUPS_CLAIM", "groups"),
         oidc_allowed_users=_list("OIDC_ALLOWED_USERS"),
         oidc_allowed_groups=_list("OIDC_ALLOWED_GROUPS"),
+        repo_url=_str("REPO_URL", "https://github.com/overkillthemighty/ttrpg-pipeline").rstrip("/"),
         nc_url=_str("NEXTCLOUD_URL").rstrip("/"),
         nc_user=_str("NEXTCLOUD_USER"),
         nc_password=_str("NEXTCLOUD_APP_PASSWORD"),

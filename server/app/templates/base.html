@@ -35,6 +35,10 @@
 {% if flash %}<div class="flash {{ flash.kind }}">{{ flash.msg }}</div>{% endif %}
 {% block content %}{% endblock %}
 </main>
+{% if repo_url %}<footer class="site-footer small muted">
+  <a href="{{ repo_url }}/commits/main" target="_blank" rel="noopener">Changelog</a> ·
+  <a href="{{ repo_url }}" target="_blank" rel="noopener">Source on GitHub</a>
+</footer>{% endif %}
 <script src="{{ asset('app.js') }}"></script>
 {% block scripts %}{% endblock %}
 </body>
